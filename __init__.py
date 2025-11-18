@@ -301,12 +301,20 @@ class SaveImageToDisk(ComfyNodeABC):
         if images is None or images.size(0) == 0:
             raise ValueError("No images provided to SaveImageToDisk.")
 
+        # Preserve the original filename_prefix before sanitization
+        original_prefix = filename_prefix
+
         # Match built-in SaveImage behavior for save path generation
+        # We still call get_save_image_path to get counter and directory structure,
+        # but we'll use the original prefix for the actual filename
         h = images[0].shape[0]
         w = images[0].shape[1]
-        full_output_folder, filename, counter, subfolder, filename_prefix = folder_paths.get_save_image_path(
+        full_output_folder, filename, counter, subfolder, sanitized_prefix = folder_paths.get_save_image_path(
             filename_prefix, self.output_dir, w, h
         )
+
+        # Use the original prefix instead of the sanitized one
+        filename_prefix = original_prefix
 
         first_rel = ""
         first_abs = ""
@@ -315,8 +323,11 @@ class SaveImageToDisk(ComfyNodeABC):
             i = 255.0 * image.cpu().numpy()
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
 
-            filename_with_batch_num = filename.replace("%batch_num%", str(batch_number))
-            file = f"{filename_with_batch_num}_{counter:05}_.png"
+            # Generate filename using the preserved original prefix
+            filename_with_batch_num = f"{filename_prefix}_{counter:05}"
+            if batch_number > 0:
+                filename_with_batch_num = f"{filename_with_batch_num}_batch{batch_number}"
+            file = f"{filename_with_batch_num}_.png"
             abs_path = os.path.join(full_output_folder, file)
 
             # PNG is lossless; "95% quality" interpreted as low compression, fast save, high fidelity
